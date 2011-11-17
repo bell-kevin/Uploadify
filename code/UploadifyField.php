@@ -426,7 +426,7 @@ abstract class UploadifyField extends FormField
 	 * @return UploadifyField
 	 */
 	public function FieldHolder() {
-		Requirements::javascript(THIRDPARTY_DIR."/jquery/jquery.js");
+		Requirements::javascript(THIRDPARTY_DIR."/jquery/jquery-packed.js");
 		Requirements::javascript("uploadify/javascript/swfobject.js");
 		Requirements::javascript("uploadify/javascript/uploadify.js");
 		Requirements::javascript(THIRDPARTY_DIR."/jquery-metadata/jquery.metadata.js");
