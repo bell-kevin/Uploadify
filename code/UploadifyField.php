@@ -308,6 +308,7 @@ abstract class UploadifyField extends FormField
 			$u = new Upload();
 			$u->loadIntoFile($_FILES['Filedata'], $file, $upload_folder);
 			$file->write();
+			if (method_exists($file, 'onAfterUpload')) $file->onAfterUpload();
 			echo $file->ID;
 		} 
 		else {
@@ -371,7 +372,27 @@ abstract class UploadifyField extends FormField
 	public function importlist(SS_HTTPRequest $request) {
 		if($id = $request->requestVar('FolderID')) {
 			if(is_numeric($id)) {
-				$files = DataObject::get("File", "\"ParentID\" = $id AND \"File\".\"ClassName\" != 'Folder'");
+				
+				if($ext = $request->requestVar('FileExt')){
+					$ext = str_replace('*.','',$ext);
+					$ext_arr = explode(';', $ext);
+					$ext = ' AND (';
+					$x = 0;
+					foreach($ext_arr as $e){
+						if($x++ == 0){
+							$ext .= " Name LIKE '%.$e' ";	
+						} else {
+							$ext .= " OR Name LIKE '%.$e' ";
+						}
+					};
+					
+					$ext .= ')';
+					
+					$files = DataObject::get("File", "ParentID = $id AND ClassName != 'Folder'".$ext);					
+				} else {
+					$files = DataObject::get("File", "ParentID = $id AND ClassName != 'Folder'");
+				}
+				
 				return $this->customise(array(
 					'Files' => $files
 				))->renderWith('ImportList');
@@ -486,9 +507,15 @@ abstract class UploadifyField extends FormField
 		if(!$id) {
 			$id = $this->CurrentUploadFolder()->ID;
 		}
-		$class = (class_exists("SimpleTreeDropdownField")) ? "SimpleTreeDropdownField" : "DropdownField";
+		if(class_exists("SimpleTreeDropdownField")){
+			$d=new SimpleTreeDropdownField("UploadFolderID_{$this->id()}", '', "Folder", $id, "Filename");
+		}else{
+			
+			$folders=DataObject::get("Folder");
+			$d=new DropdownField("UploadFolderID_{$this->id()}", '', $folders->toDropDownMap("ID","Title"), $id);
+		}
 		$group = new FieldGroup(
-			$d = new $class("UploadFolderID_{$this->id()}", '', "Folder", $id, "Filename"),
+			$d,
 			new LiteralField("slash{$this->id()}"," / "),
 			new TextField("NewFolder_{$this->id()}", ""),
 			$a = new FormAction("ok_{$this->id()}", _t('Uploadify.CHANGEFOLDERACTION','Change'))
@@ -506,8 +533,16 @@ abstract class UploadifyField extends FormField
 	 * @return DropdownField
 	 */
 	public function ImportDropdown() {
+		$UploadFolder = $this->getUploadFolder();
+		$id = ($UploadFolder!="Uploads") ? Folder::findOrMake($UploadFolder)->ID : null;
 		$class = (class_exists("SimpleTreeDropdownField")) ? "SimpleTreeDropdownField" : "DropdownField";
-		$d = new $class("ImportFolderID_{$this->id()}", _t('Uploadify.CHOOSEIMPORTFOLDER','Choose a folder'), "Folder", null, "Filename");
+		$d = new $class("ImportFolderID_{$this->id()}", _t('Uploadify.CHOOSEIMPORTFOLDER','Choose a folder'), "Folder", $id, "Filename");
+		if(class_exists("SimpleTreeDropdownField")){
+			$d=new SimpleTreeDropdownField("ImportFolderID_{$this->id()}", _t('Uploadify.CHOOSEIMPORTFOLDER','Choose a folder'), "Folder", $id, "Filename");
+		}else{
+			$folders=DataObject::get("Folder");
+			$d=new DropdownField("ImportFolderID_{$this->id()}", _t('Uploadify.CHOOSEIMPORTFOLDER','Choose a folder'), $folders->toDropDownMap("ID","Title"));
+		}
 		$d->setEmptyString('-- ' . _t('Uploadify.PLEASESELECT','Select a folder') . ' --');
 		$d->addExtraClass("{'url' : '".$this->Link('importlist')."' }");
 		return $d;
